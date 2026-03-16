@@ -1,62 +1,38 @@
 package com.solvd.booksy.database;
 
-import com.solvd.booksy.exceptions.ConnectionPoolException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ConnectionPool {
 
-    private static final int POOL_SIZE = 5;
+    private static ConnectionPool instance;
+    private final BlockingQueue<String> pool;
+    private static final int MAX_CONNECTIONS = 5;
+    private static final Logger LOGGER = LogManager.getLogger(ConnectionPool.class);
 
-    private static List<String> availableConnections = new ArrayList<>();
-    private static List<String> usedConnections = new ArrayList<>();
-    private static int connectionCounter = 0;
-
-    static {
-        for (int i = 0; i < POOL_SIZE; i++) {
-            availableConnections.add("Connection-" + i);
-            connectionCounter++;
+    private ConnectionPool() {
+        pool = new LinkedBlockingQueue<>(MAX_CONNECTIONS);
+        for (int i = 0; i < MAX_CONNECTIONS; i++) {
+            pool.add("Connection " + i);
         }
-        AppLogger.info("Connection pool initialized with " + POOL_SIZE + " connections");
     }
 
-    public static synchronized String getConnection() throws ConnectionPoolException {
-        if (availableConnections.isEmpty()) {
-            AppLogger.error("No available connections.");
-            throw new ConnectionPoolException("No available connections in pool.");
+    public static synchronized ConnectionPool getInstance() {
+        if (instance == null) {
+            instance = new ConnectionPool();
         }
-
-        String connection = availableConnections.remove(0);
-        usedConnections.add(connection);
-        return connection;
+        return instance;
     }
 
-    public static synchronized void releaseConnection(String connection) throws ConnectionPoolException {
-        if (connection == null) {
-            AppLogger.warning("Attempted to release null connection");
-            throw new ConnectionPoolException("Cannot release null connection");
-        }
-
-        if (!usedConnections.remove(connection)) {
-            AppLogger.warning("Connection not found in used connections: " + connection);
-            throw new ConnectionPoolException("Connection not found in used connections");
-        }
-
-        availableConnections.add(connection);
+    public String getConnection() throws InterruptedException {
+        LOGGER.info("A connection is being requested from the pool.");
+        return pool.take();
     }
 
-    public static synchronized int getAvailableCount() {
-        return availableConnections.size();
-    }
-
-    public static synchronized int getUsedCount() {
-        return usedConnections.size();
-    }
-
-    public static synchronized void shutdown() {
-        AppLogger.info("Shutting down connection pool...");
-        availableConnections.clear();
-        usedConnections.clear();
-        AppLogger.info("Connection pool closed. All connections released.");
+    public void releaseConnection(String connection) {
+        LOGGER.info("Connection returned to the pool.");
+        pool.offer(connection);
     }
 }

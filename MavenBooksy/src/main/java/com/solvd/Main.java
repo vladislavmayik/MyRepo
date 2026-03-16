@@ -1,29 +1,16 @@
 package com.solvd;
 
-import com.solvd.booksy.database.AppLogger;
-import com.solvd.booksy.database.CustomLinkedList;
-import com.solvd.booksy.database.DataBase;
-import com.solvd.booksy.database.WordCounter;
-import com.solvd.booksy.enums.PaymentStatus;
-import com.solvd.booksy.exceptions.InvalidBookingException;
-import com.solvd.booksy.exceptions.InvalidDiscountException;
-import com.solvd.booksy.exceptions.InvalidIndexException;
-import com.solvd.booksy.exceptions.PaymentFailedException;
-import com.solvd.booksy.bookingProcess.*;
-import com.solvd.booksy.paymentProcess.Invoice;
-import com.solvd.booksy.paymentProcess.Payment;
-import com.solvd.booksy.paymentProcess.Promotion;
-import com.solvd.booksy.records.AppointmentTime;
-import com.solvd.booksy.records.Coordinates;
+import com.solvd.booksy.database.*;
 import com.solvd.booksy.users.Client;
-import com.solvd.booksy.users.Master;
 import com.solvd.booksy.users.User;
 
-import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class Main {
+
+    private static final Logger LOGGER = LogManager.getLogger(Main.class);
 
     public static void main(String[] args) throws Exception {
 
@@ -145,8 +132,29 @@ public class Main {
                 .filter(user -> user instanceof Client)
                 .map(user -> (Client) user)
                 .filter(client -> client.getLoyaltyPoints() > 50)
-                .forEach(client -> AppLogger.info("  - " + client.getFullName() + ": " + client.getLoyaltyPoints() + " points"));
+                .forEach(client -> LOGGER.info("  - " + client.getFullName() + ": " + client.getLoyaltyPoints() + " points"));
 
         WordCounter.count("input.txt", "output.csv");
+
+        ConnectionPool Pool = ConnectionPool.getInstance();
+        for (int i = 0; i < 10; i++) {
+            int connectionId = i;
+
+            Thread connectionThread = new Thread(() -> {
+                try {
+                    String conn = Pool.getConnection();
+
+                    LOGGER.info("Client " + connectionId + " got: " + conn);
+                    Thread.sleep(2000);
+
+                    Pool.releaseConnection(conn);
+                    LOGGER.info("Client " + connectionId + " released the connection.");
+
+                } catch (InterruptedException e) {
+                    LOGGER.error(e.getMessage());
+                }
+            });
+            connectionThread.start();
+        }
     }
 }
